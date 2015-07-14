@@ -13,9 +13,15 @@
 (function ($) {
     var defaults = {
         checkInterval: 200, //set timeout to check whether all the characters are the same
-        transDelay   : 200, //delay to transform last letter
-        character    : '%u25CF', //instead of the character
-        callback     : null
+        transDelay: 200, //delay to transform last letter
+        character: '%u25CF', //instead of the character
+        callback: null,
+        // omit the name attribute on the new proxy element which prevents it from being
+        // submitted
+        omitNameAttribute: false,
+        // converts original element to input type of text to prevent browser from trying
+        // to save password
+        bypassSavePassword: false
     };
 
     /**
@@ -39,12 +45,25 @@
     Password.prototype.init = function () {
         var that = this;
 
-        var suffix = 'Clone';
-
         var id = this.$elem[0].id || '';
         var name = this.$elem[0].name || '';
-        var newId = id + suffix;
-        var newName = name + suffix;
+
+        // handle field id and name that represent arrays (e.g. foo[], foo[bar], foo[bar][])
+        var fieldId = _.last(id.match(/(\[.+?\])/gm)) || id;
+        var fieldName = _.last(name.match(/(\[.+?\])/gm)) || name;
+
+        var suffix = 'Clone';
+
+        if (fieldId != null) {
+            fieldId = fieldId.replace(/[\[\]]/gm, '');
+        }
+
+        if (fieldName != null) {
+            fieldName = fieldName.replace(/[\[\]]/gm, '');
+        }
+
+        var newId = id.replace(fieldId, fieldId + suffix);
+        var newName = name.replace(fieldName, fieldName + suffix);
 
         this.$newElem = $('<input>');
         this.$newElem.attr($.extend(extractAttributes(this.$elem[0]), {
@@ -55,8 +74,15 @@
                 'ime-mode'    : 'disabled'
             }));
 
+        if (this.options.omitNameAttribute === true) {
+            this.$newElem.removeAttr('name');
+        }
+
         this.$elem.after(this.$newElem).attr({'accessKey': '', tabIndex: ''}).hide();
 
+        if (this.options.bypassSavePassword === true) {
+            this.$elem.attr('type', 'text');
+        }
 
         this.$newElem.on('focus', function () {
 //            that.checkTimeout = setTimeout(function () {
@@ -79,6 +105,9 @@
         if( this.options.callback && typeof this.options.callback ==='function'){
             this.options.callback.call(this);
         }
+
+        // start the masking process immediately
+        this._checkChange();
     };
 
     Password.prototype.destroy = function (){
